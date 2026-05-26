@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 
-const ROBLOX_API_KEY = process.env.ROBLOX_API_KEY!;
+const ROBLOX_API_KEY = process.env.ROBLOX_API_KEY;
+
+if (!ROBLOX_API_KEY) {
+  throw new Error('ROBLOX_API_KEY environment variable is required');
+}
 
 const USER_API = 'https://users.roblox.com/v1/users/';
 const AVATAR_API = 'https://avatar.roblox.com/v1/users/';
@@ -10,18 +14,33 @@ const THUMBNAIL_API = 'https://thumbnails.roblox.com/v1/';
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+function getRobloxHeaders(customHeaders: Record<string, string> = {}) {
+  return {
+    'User-Agent': 'AvatarsVercim/1.0',
+    'x-api-key': ROBLOX_API_KEY,
+    ...customHeaders,
+  };
+}
+
+async function timeoutFetch(url: string, options: RequestInit = {}, timeoutMs = 15000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function fetchJson(url: string, options: RequestInit = {}): Promise<Record<string, unknown>> {
-  const res = await fetch(url, {
+  const res = await timeoutFetch(url, {
     ...options,
-    headers: {
-      'User-Agent': 'AvatarsVercim/1.0',
-      ...options.headers,
-    },
+    headers: getRobloxHeaders({ ...(options.headers as Record<string, string> | undefined) }),
   });
 
   if (res.status === 429) {
     const retryAfter = res.headers.get('Retry-After');
-    const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : 3000;
+    const waitTime = retryAfter ? parseInt(retryAfter, 10) * 1000 : 3000;
     await delay(waitTime);
     return fetchJson(url, options);
   }
@@ -109,18 +128,17 @@ export async function GET(
   const thumbnailPromise = (async () => {
     try {
       const data = await fetchJson(
-          `${THUMBNAIL_API}users/avatar?userIds=${userId}&size=720x720&format=png&isCircular=false`,
-        { headers: { 'x-api-key': ROBLOX_API_KEY } }
+        `${THUMBNAIL_API}users/avatar?userIds=${userId}&size=720x720&format=png&isCircular=false`
       );
       const items = data.data as Array<{ imageUrl: string }> | undefined;
       if (items?.[0]?.imageUrl) return items[0].imageUrl;
     } catch {
       // fallback below
     }
-    // fallback: try without API key
+    // fallback: try without API key or with a public thumbnail path
     try {
       const data = await fetchJson(
-          `${THUMBNAIL_API}users/avatar?userIds=${userId}&size=720x720&format=png&isCircular=false`
+        `${THUMBNAIL_API}users/avatar?userIds=${userId}&size=720x720&format=png&isCircular=false`
       );
       const items = data.data as Array<{ imageUrl: string }> | undefined;
       if (items?.[0]?.imageUrl) return items[0].imageUrl;
@@ -133,8 +151,7 @@ export async function GET(
   const headshotPromise = (async () => {
     try {
       const data = await fetchJson(
-        `${THUMBNAIL_API}users/avatar-headshot?userIds=${userId}&size=720x720&format=png&isCircular=false`,
-        { headers: { 'x-api-key': ROBLOX_API_KEY } }
+        `${THUMBNAIL_API}users/avatar-headshot?userIds=${userId}&size=720x720&format=png&isCircular=false`
       );
       const items = data.data as Array<{ imageUrl: string }> | undefined;
       if (items?.[0]?.imageUrl) return items[0].imageUrl;
@@ -165,18 +182,14 @@ export async function GET(
 
   let inventoryAssets: number[] = [];
   try {
-    const cloudData = await fetchJson(
-      `${INVENTORY_CLOUD_API}${userId}/inventory?limit=50`,
-      { headers: { 'x-api-key': ROBLOX_API_KEY } }
-    );
+    const cloudData = await fetchJson(`${INVENTORY_CLOUD_API}${userId}/inventory?limit=50`);
     inventoryAssets = ((cloudData.inventoryItems ?? []) as Array<Record<string, unknown>>)
       .map((item) => item.assetId as number)
       .filter(Boolean);
   } catch {
     try {
       const publicData = await fetchJson(
-        `https://inventory.roblox.com/v2/users/${userId}/inventory?assetTypes=8,18,19,21,41,42,43,44,45,46,47,48,49,50&limit=50`,
-        { headers: { 'x-api-key': ROBLOX_API_KEY } }
+        `https://inventory.roblox.com/v2/users/${userId}/inventory?assetTypes=8,18,19,21,41,42,43,44,45,46,47,48,49,50&limit=50`
       );
       inventoryAssets = ((publicData.data ?? []) as Array<Record<string, unknown>>).map((item) => item.assetId as number);
     } catch {

@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 
-const ROBLOX_API_KEY = process.env.ROBLOX_API_KEY!;
+const ROBLOX_API_KEY = process.env.ROBLOX_API_KEY;
+
+if (!ROBLOX_API_KEY) {
+  throw new Error('ROBLOX_API_KEY environment variable is required');
+}
 
 function getHashUrl(hash: string): string {
   let st = 31;
@@ -20,10 +24,12 @@ function getCdnHost(hash: string): string {
 
 async function tryThumbnailApi(userId: string) {
   try {
-    const res = await fetch(
-      `https://thumbnails.roblox.com/v1/users/avatar-3d?userId=${userId}`,
-      { headers: { 'Accept': 'application/json', 'x-api-key': ROBLOX_API_KEY } }
-    );
+    const headers: Record<string, string> = {
+      Accept: 'application/json',
+      'x-api-key': ROBLOX_API_KEY as string,
+    };
+
+    const res = await fetch(`https://thumbnails.roblox.com/v1/users/avatar-3d?userId=${userId}`, { headers });
     if (!res.ok) return null;
 
     const { imageUrl } = await res.json() as { imageUrl: string };
