@@ -90,13 +90,23 @@ export default function Avatar3D({ userId, thumbnailUrl }: Avatar3DProps) {
   if (data) {
     return (
       <div className="w-full aspect-square">
-        <Canvas camera={{ position: [0, 0, 8], fov: 30 }} gl={{ alpha: true }}>
+        <Canvas camera={{ position: [0, 0, 25], fov: 30 }} gl={{ alpha: true }}>
           <ambientLight intensity={0.8} />
           <directionalLight position={[5, 5, 5]} intensity={0.5} />
           <Suspense fallback={<Loader />}>
             <ObjModel data={data} />
           </Suspense>
-          <OrbitControls target={[0, 0, 0]} enableDamping dampingFactor={0.08} autoRotate autoRotateSpeed={1.25} minDistance={20} maxDistance={40} />
+          <OrbitControls
+            target={[0, 0, 0]}
+            enableDamping
+            dampingFactor={0.08}
+            autoRotate
+            autoRotateSpeed={1.25}
+            enableZoom={false}
+            enablePan={false}
+            minDistance={25}
+            maxDistance={25}
+          />
         </Canvas>
       </div>
     );

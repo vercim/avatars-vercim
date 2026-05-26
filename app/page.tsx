@@ -23,6 +23,11 @@ export default function Home() {
       const res = await fetch(`/api/user/${id}`);
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
+        if (res.status === 502) {
+          throw new Error(
+            'Failed to fetch data from Roblox. This may happen when Roblox is blocked in your country or your VPN is not enabled. Try turning on a VPN or checking your network settings.'
+          );
+        }
         throw new Error(err.error || `Request failed (${res.status})`);
       }
       const userData: UserData = await res.json();
@@ -40,7 +45,6 @@ export default function Home() {
   const isLoading = loading;
 
   useEffect(() => {
-    loadUser('2254875642'); // eslint-disable-line react-hooks/set-state-in-effect
     const handler = (e: Event) => {
       const customEvent = e as CustomEvent;
       setError(customEvent.detail);
@@ -53,7 +57,7 @@ export default function Home() {
     <div className="min-h-screen">
       <main className="max-w-5xl mx-auto w-full px-4 py-8 space-y-8">
         <section className="text-center space-y-2">
-          <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight">avatars.verc.im</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">avatars.verc.im</h1>
           <p className="text-sm text-muted-foreground max-w-md mx-auto">
             Enter a username or user ID to see their avatar and inventory
           </p>

@@ -62,7 +62,7 @@ export default function SearchBar({ onSearch, loading }: Props) {
           className="pl-9 h-10"
         />
       </div>
-      <Button type="submit" disabled={isBusy} className="h-10">
+      <Button type="submit" disabled={isBusy} className="h-10 cursor-pointer">
         {isBusy ? 'Searching...' : 'Search'}
       </Button>
     </form>
