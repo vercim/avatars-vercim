@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 
-const ROBLOX_API_KEY = process.env.ROBLOX_API_KEY;
+const ENV_ROBLOX_API_KEY = process.env.ROBLOX_API_KEY;
 
-if (!ROBLOX_API_KEY) {
+if (!ENV_ROBLOX_API_KEY) {
   throw new Error('ROBLOX_API_KEY environment variable is required');
 }
+
+const ROBLOX_API_KEY = ENV_ROBLOX_API_KEY;
 
 const USER_API = 'https://users.roblox.com/v1/users/';
 const AVATAR_API = 'https://avatar.roblox.com/v1/users/';
@@ -14,12 +16,11 @@ const THUMBNAIL_API = 'https://thumbnails.roblox.com/v1/';
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-function getRobloxHeaders(customHeaders: Record<string, string> = {}) {
-  return {
-    'User-Agent': 'AvatarsVercim/1.0',
-    'x-api-key': ROBLOX_API_KEY,
-    ...customHeaders,
-  };
+function getRobloxHeaders(customHeaders?: HeadersInit) {
+  const headers = new Headers(customHeaders);
+  headers.set('User-Agent', 'AvatarsVercim/1.0');
+  headers.set('x-api-key', ROBLOX_API_KEY);
+  return headers;
 }
 
 async function timeoutFetch(url: string, options: RequestInit = {}, timeoutMs = 15000) {
@@ -35,7 +36,7 @@ async function timeoutFetch(url: string, options: RequestInit = {}, timeoutMs = 
 async function fetchJson(url: string, options: RequestInit = {}): Promise<Record<string, unknown>> {
   const res = await timeoutFetch(url, {
     ...options,
-    headers: getRobloxHeaders({ ...(options.headers as Record<string, string> | undefined) }),
+    headers: getRobloxHeaders(options.headers),
   });
 
   if (res.status === 429) {
@@ -76,8 +77,7 @@ async function getThumbnailUrls(assetIds: number[]): Promise<Map<number, string>
     const idsParam = chunk.join(',');
     try {
       const data = await fetchJson(
-        `${THUMBNAIL_API}assets?assetIds=${idsParam}&size=150x150&format=png&isCircular=false`,
-        { headers: { 'x-api-key': ROBLOX_API_KEY } }
+        `${THUMBNAIL_API}assets?assetIds=${idsParam}&size=150x150&format=png&isCircular=false`
       );
       const items = data.data as Array<{ targetId: number; imageUrl: string }> | undefined;
       if (items) {
