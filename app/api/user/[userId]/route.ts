@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 const ENV_ROBLOX_API_KEY = process.env.ROBLOX_API_KEY;
 
 if (!ENV_ROBLOX_API_KEY) {
+  console.error('[api/user] ROBLOX_API_KEY environment variable is missing');
   throw new Error('ROBLOX_API_KEY environment variable is required');
 }
 
@@ -21,6 +22,14 @@ function getRobloxHeaders(customHeaders?: HeadersInit) {
   headers.set('User-Agent', 'AvatarsVercim/1.0');
   headers.set('x-api-key', ROBLOX_API_KEY);
   return headers;
+}
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function logApiError(message: string, meta: Record<string, unknown>, error: unknown) {
+  console.error(`[api/user] ${message}`, meta, getErrorMessage(error));
 }
 
 async function timeoutFetch(url: string, options: RequestInit = {}, timeoutMs = 15000) {
@@ -60,7 +69,8 @@ async function getItemDetails(assetId: number): Promise<{ name: string; price: n
       price: typeof data.PriceInRobux === 'number' ? data.PriceInRobux : data.IsFree ? 0 : null,
       description: String(data.Description ?? ''),
     };
-  } catch {
+  } catch (error) {
+    logApiError('Failed to fetch item details', { assetId }, error);
     return { name: `Item ${assetId}`, price: null, description: '' };
   }
 }
@@ -88,7 +98,8 @@ async function getThumbnailUrls(assetIds: number[]): Promise<Map<number, string>
           }
         }
       }
-    } catch {
+    } catch (error) {
+      logApiError('Failed to fetch asset thumbnails', { assetIds: idsParam }, error);
       // fallback will be used
     }
   }
@@ -120,7 +131,8 @@ export async function GET(
         externalAppDisplayName: data.externalAppDisplayName as string | null ?? null,
         hasVerifiedBadge: Boolean(data.hasVerifiedBadge ?? false),
       };
-    } catch {
+    } catch (error) {
+      logApiError('Failed to load user info', { userId }, error);
       return null;
     }
   })();
@@ -132,7 +144,8 @@ export async function GET(
       );
       const items = data.data as Array<{ imageUrl: string }> | undefined;
       if (items?.[0]?.imageUrl) return items[0].imageUrl;
-    } catch {
+    } catch (error) {
+      logApiError('Failed to load avatar thumbnail', { userId }, error);
       // fallback below
     }
     // fallback: try without API key or with a public thumbnail path
@@ -142,7 +155,8 @@ export async function GET(
       );
       const items = data.data as Array<{ imageUrl: string }> | undefined;
       if (items?.[0]?.imageUrl) return items[0].imageUrl;
-    } catch {
+    } catch (error) {
+      logApiError('Fallback failed for avatar thumbnail', { userId }, error);
       // fallback below
     }
     return `https://www.roblox.com/headshot-thumbnail/image?userId=${userId}&width=720&height=720&format=png`;
@@ -155,7 +169,8 @@ export async function GET(
       );
       const items = data.data as Array<{ imageUrl: string }> | undefined;
       if (items?.[0]?.imageUrl) return items[0].imageUrl;
-    } catch {
+    } catch (error) {
+      logApiError('Failed to load avatar headshot', { userId }, error);
       // fallback below
     }
     try {
@@ -164,7 +179,8 @@ export async function GET(
       );
       const items = data.data as Array<{ imageUrl: string }> | undefined;
       if (items?.[0]?.imageUrl) return items[0].imageUrl;
-    } catch {
+    } catch (error) {
+      logApiError('Fallback failed for avatar headshot', { userId }, error);
       // fallback below
     }
     return `https://www.roblox.com/headshot-thumbnail/image?userId=${userId}&width=720&height=720&format=png`;
@@ -174,7 +190,8 @@ export async function GET(
   try {
     const avatarData = await fetchJson(`${AVATAR_API}${userId}/avatar`);
     wornAssets = ((avatarData.assets ?? []) as Array<Record<string, unknown>>).map((a) => a.id as number);
-  } catch {
+  } catch (error) {
+    logApiError('Failed to load avatar assets', { userId }, error);
     return NextResponse.json({ error: 'Failed to load avatar' }, { status: 502 });
   }
 
@@ -186,13 +203,15 @@ export async function GET(
     inventoryAssets = ((cloudData.inventoryItems ?? []) as Array<Record<string, unknown>>)
       .map((item) => item.assetId as number)
       .filter(Boolean);
-  } catch {
+  } catch (error) {
+    logApiError('Failed to load inventory from cloud API', { userId }, error);
     try {
       const publicData = await fetchJson(
         `https://inventory.roblox.com/v2/users/${userId}/inventory?assetTypes=8,18,19,21,41,42,43,44,45,46,47,48,49,50&limit=50`
       );
       inventoryAssets = ((publicData.data ?? []) as Array<Record<string, unknown>>).map((item) => item.assetId as number);
-    } catch {
+    } catch (error) {
+      logApiError('Failed to load inventory from public API', { userId }, error);
       // inventory is optional
     }
   }

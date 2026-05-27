@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
+  let username: string | null = null;
   try {
-    const { username } = await request.json();
+    const payload = await request.json();
+    username = typeof payload.username === 'string' ? payload.username : null;
 
-    if (!username || typeof username !== 'string') {
+    if (!username) {
       return NextResponse.json({ error: 'Username is required' }, { status: 400 });
     }
 
@@ -25,7 +27,8 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ userId: data.data[0].id, displayName: data.data[0].displayName });
-  } catch {
+  } catch (error) {
+    console.error('[api/resolve-username] Failed to resolve username', { username }, error instanceof Error ? error.message : String(error));
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 
 const MAX_ROTATE_X = 10;
 const MAX_ROTATE_Y = 12;
-const MAX_SCALE = 1.13;
+const MAX_SCALE = 1.06;
 
 export default function TooltipCard({ item, showWornBadge = false }: { item: AssetInfo; showWornBadge?: boolean }) {
   const cardRef = useRef<HTMLDivElement | null>(null);
@@ -32,6 +32,13 @@ export default function TooltipCard({ item, showWornBadge = false }: { item: Ass
     const rotateY = (x - 0.5) * 2 * MAX_ROTATE_Y * -1;
     const rotateX = (y - 0.5) * 2 * MAX_ROTATE_X;
     updateTransform(`rotateX(${rotateX.toFixed(2)}deg) rotateY(${rotateY.toFixed(2)}deg) scale(${MAX_SCALE})`);
+
+    if (cardRef.current) {
+      const angle = Math.atan2(rotateX, rotateY) * (180 / Math.PI);
+      cardRef.current.style.setProperty('--hologram-angle', `${angle}deg`);
+      cardRef.current.style.setProperty('--hologram-x', `${x * 100}%`);
+      cardRef.current.style.setProperty('--hologram-y', `${y * 100}%`);
+    }
   };
 
   const handleMouseLeave = () => {
@@ -47,14 +54,14 @@ export default function TooltipCard({ item, showWornBadge = false }: { item: Ass
       href={item.catalogUrl}
       target="_blank"
       rel="noopener noreferrer"
-      className="block"
+      className="block relative duration-150 ease-out will-change-transform"
       style={{ perspective: 1000 }}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
       <Card
         ref={cardRef}
-        className="p-2 cursor-pointer transition-transform duration-150 ease-out will-change-transform bg-secondary border-0 relative z-1"
+        className="p-2 cursor-pointer transition-transform duration-150 ease-out will-change-transform bg-secondary border-0 hologram-card"
         style={{
           transform: 'rotateX(0deg) rotateY(0deg) scale(1)',
           transformStyle: 'preserve-3d',

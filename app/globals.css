@@ -128,3 +128,63 @@
     @apply font-sans;
   }
 }
+
+@layer components {
+  .hologram-card {
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* ensure content sits below hologram layers so effect appears on top */
+  .hologram-card > * {
+    position: relative;
+    z-index: 0;
+  }
+
+  .hologram-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      var(--hologram-angle, 45deg),
+      rgba(0, 255, 255, 0) 0%,
+      rgba(0, 255, 255, 0.08) 25%,
+      rgba(255, 0, 255, 0.07) 50%,
+      rgba(255, 255, 0, 0.06) 75%,
+      rgba(0, 255, 255, 0) 100%
+    );
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 320ms cubic-bezier(.16,.84,.24,1), transform 320ms cubic-bezier(.16,.84,.24,1);
+    mix-blend-mode: screen;
+    z-index: 999; /* put linear hologram layer above content */
+    border-radius: inherit;
+  }
+
+  .hologram-card:hover::before {
+    opacity: 0.45; /* less intense */
+    transform: translateZ(8px) scale(1.01);
+  }
+
+  .hologram-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+      circle at var(--hologram-x, 50%) var(--hologram-y, 50%),
+      rgba(0, 255, 255, 0.11) 0%,
+      rgba(255, 0, 255, 0.08) 40%,
+      rgba(255, 255, 0, 0) 100%
+    );
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 360ms cubic-bezier(.16,.84,.24,1), background-position 200ms ease-out;
+    mix-blend-mode: screen;
+    z-index: 1000; /* put radial hologram layer above content */
+    border-radius: inherit;
+  }
+
+  .hologram-card:hover::after {
+    opacity: 0.6; /* softer radial highlight */
+  }
+}
