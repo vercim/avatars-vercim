@@ -8,7 +8,7 @@ export default function AccessoriesGrid({ items }: { items: AssetInfo[] }) {
   }
 
   return (
-    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+    <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
       {items.map((item) => (
         <TooltipCard key={item.assetId} item={item} />
       ))}

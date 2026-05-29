@@ -179,12 +179,12 @@
     pointer-events: none;
     opacity: 0;
     transition: opacity 360ms cubic-bezier(.16,.84,.24,1), background-position 200ms ease-out;
-    mix-blend-mode: screen;
+    mix-blend-mode: overlay;
     z-index: 1000; /* put radial hologram layer above content */
     border-radius: inherit;
   }
 
   .hologram-card:hover::after {
-    opacity: 0.6; /* softer radial highlight */
+    opacity: 1; /* softer radial highlight */
   }
 }
