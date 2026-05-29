@@ -10,6 +10,21 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Spinner } from '@/components/ui/spinner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
+const fetchWithTimeout = async (
+  input: RequestInfo,
+  init: RequestInit | undefined,
+  timeoutMs = 60000
+): Promise<Response> => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
 export default function Home() {
   const [userId, setUserId] = useState('2254875642');
   const [data, setData] = useState<UserData | null>(null);
@@ -20,7 +35,7 @@ export default function Home() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`/api/user/${id}`);
+      const res = await fetchWithTimeout(`/api/user/${id}`, undefined, 60000);
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         if (res.status === 502) {
@@ -35,7 +50,11 @@ export default function Home() {
       setData(userData);
       setUserId(id);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Unknown error');
+      if (e instanceof Error && e.name === 'AbortError') {
+        setError('Request timed out after 1 minute. Please try again later or check your network connection.');
+      } else {
+        setError(e instanceof Error ? e.message : 'Unknown error');
+      }
       setData(null);
     } finally {
       setLoading(false);
