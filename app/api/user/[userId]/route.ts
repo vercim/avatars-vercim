@@ -51,24 +51,39 @@ async function timeoutFetch(url: string, options: RequestInit = {}, timeoutMs = 
   }
 }
 
-async function fetchJson(url: string, options: RequestInit = {}): Promise<Record<string, unknown>> {
-  const res = await timeoutFetch(url, {
-    ...options,
-    headers: getRobloxHeaders(options.headers),
-  });
+async function fetchJson(
+  url: string,
+  options: RequestInit = {},
+  includeApiKey = true,
+  retries = 3
+): Promise<Record<string, unknown>> {
+  const headers = includeApiKey ? getRobloxHeaders(options.headers) : new Headers(options.headers);
+  try {
+    const res = await timeoutFetch(url, {
+      ...options,
+      headers,
+    });
 
-  if (res.status === 429) {
-    const retryAfter = res.headers.get('Retry-After');
-    const waitTime = retryAfter ? parseInt(retryAfter, 10) * 1000 : 3000;
-    await delay(waitTime);
-    return fetchJson(url, options);
-  }
+    if (res.status === 429 && retries > 0) {
+      const retryAfter = res.headers.get('Retry-After');
+      const waitTime = retryAfter ? parseInt(retryAfter, 10) * 1000 : 3000;
+      await delay(waitTime);
+      return fetchJson(url, options, includeApiKey, retries - 1);
+    }
 
-  if (!res.ok) {
-    const body = await readResponseBody(res);
-    throw new Error(`HTTP ${res.status} ${body}`);
+    if (!res.ok) {
+      const body = await readResponseBody(res);
+      throw new Error(`HTTP ${res.status} ${body}`);
+    }
+    return res.json();
+  } catch (error) {
+    const name = (error as any)?.name;
+    if ((name === 'AbortError' || name === 'FetchError') && retries > 0) {
+      await delay(1000);
+      return fetchJson(url, options, includeApiKey, retries - 1);
+    }
+    throw error;
   }
-  return res.json();
 }
 
 async function getItemDetails(assetId: number): Promise<{ name: string; price: number | null; description: string }> {
@@ -181,17 +196,6 @@ export async function GET(
       if (items?.[0]?.imageUrl) return items[0].imageUrl;
     } catch (error) {
       logApiError('Failed to load avatar headshot', { userId }, error);
-      // fallback below
-    }
-    try {
-      const data = await fetchJson(
-        `${THUMBNAIL_API}users/avatar-headshot?userIds=${userId}&size=720x720&format=png&isCircular=false`
-      );
-      const items = data.data as Array<{ imageUrl: string }> | undefined;
-      if (items?.[0]?.imageUrl) return items[0].imageUrl;
-    } catch (error) {
-      logApiError('Fallback failed for avatar headshot', { userId }, error);
-      // fallback below
     }
     return `https://www.roblox.com/headshot-thumbnail/image?userId=${userId}&width=720&height=720&format=png`;
   })();
@@ -212,17 +216,31 @@ export async function GET(
   let inventoryError: string | null = null;
 
   try {
-    const cloudData = await fetchJson(`${INVENTORY_CLOUD_API}${userId}/inventory?limit=50`);
-    inventoryAssets = ((cloudData.inventoryItems ?? []) as Array<Record<string, unknown>>)
-      .map((item) => item.assetId as number)
-      .filter(Boolean);
+    // Use a short timeout for inventory so failures don't block the whole response
+    const cloudPromise = fetchJson(`${INVENTORY_CLOUD_API}${userId}/inventory?limit=50`, {}, true, 1);
+    const cloudData = await Promise.race([cloudPromise, delay(2000).then(() => null)]);
+    if (cloudData) {
+      inventoryAssets = ((cloudData.inventoryItems ?? []) as Array<Record<string, unknown>>)
+        .map((item) => item.assetId as number)
+        .filter(Boolean);
+    } else {
+      throw new Error('Cloud inventory timed out');
+    }
   } catch (error) {
     logApiError('Failed to load inventory from cloud API', { userId }, error);
     try {
-      const publicData = await fetchJson(
-        `https://inventory.roblox.com/v2/users/${userId}/inventory?assetTypes=8,18,19,21,41,42,43,44,45,46,47,48,49,50&limit=50`
+      const publicPromise = fetchJson(
+        `https://inventory.roblox.com/v2/users/${userId}/inventory?assetTypes=8,18,19,21,41,42,43,44,45,46,47,48,49,50&limit=50`,
+        {},
+        false,
+        1
       );
-      inventoryAssets = ((publicData.data ?? []) as Array<Record<string, unknown>>).map((item) => item.assetId as number);
+      const publicData = await Promise.race([publicPromise, delay(2000).then(() => null)]);
+      if (publicData) {
+        inventoryAssets = ((publicData.data ?? []) as Array<Record<string, unknown>>).map((item) => item.assetId as number);
+      } else {
+        throw new Error('Public inventory timed out');
+      }
     } catch (fallbackError) {
       logApiError('Failed to load inventory from public API', { userId }, fallbackError);
       inventoryAvailable = false;
@@ -231,16 +249,31 @@ export async function GET(
     }
   }
 
-  const allIds = [...new Set([...wornAssets, ...inventoryAssets])];
+  let allIds = [...new Set([...wornAssets, ...inventoryAssets])];
+  const MAX_ASSETS = 50;
+  if (allIds.length > MAX_ASSETS) {
+    allIds = allIds.slice(0, MAX_ASSETS);
+  }
 
   const [detailsMap, thumbnailMap] = await Promise.all([
     (async () => {
       const map = new Map<number, { name: string; price: number | null; description: string }>();
-      for (const id of allIds) {
-        const details = await getItemDetails(id);
-        map.set(id, details);
-        await delay(30);
+      const CONCURRENCY = 5;
+      let idx = 0;
+      async function worker() {
+        while (true) {
+          const i = idx++;
+          if (i >= allIds.length) return;
+          const id = allIds[i];
+          try {
+            const details = await getItemDetails(id);
+            map.set(id, details);
+          } catch (error) {
+            map.set(id, { name: `Item ${id}`, price: null, description: '' });
+          }
+        }
       }
+      await Promise.all(Array.from({ length: Math.min(CONCURRENCY, allIds.length) }, () => worker()));
       return map;
     })(),
     getThumbnailUrls(allIds),

@@ -128,7 +128,7 @@ export default function Home() {
             </Card>
           </>
         )}
-      <div className="flex justify-center pt-8 pb-4">
+      <div className="absolute top-2 right-2">
         <ThemeToggle />
       </div>
       </main>
