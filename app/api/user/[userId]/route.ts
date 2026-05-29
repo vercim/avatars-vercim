@@ -32,6 +32,15 @@ function logApiError(message: string, meta: Record<string, unknown>, error: unkn
   console.error(`[api/user] ${message}`, meta, getErrorMessage(error));
 }
 
+async function readResponseBody(res: Response): Promise<string> {
+  try {
+    const text = await res.text();
+    return text.length > 1000 ? `${text.slice(0, 1000)}...` : text || '<empty body>';
+  } catch (error) {
+    return `<failed to read body: ${error instanceof Error ? error.message : String(error)}>`;
+  }
+}
+
 async function timeoutFetch(url: string, options: RequestInit = {}, timeoutMs = 15000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -56,7 +65,8 @@ async function fetchJson(url: string, options: RequestInit = {}): Promise<Record
   }
 
   if (!res.ok) {
-    throw new Error(`HTTP ${res.status}`);
+    const body = await readResponseBody(res);
+    throw new Error(`HTTP ${res.status} ${body}`);
   }
   return res.json();
 }
