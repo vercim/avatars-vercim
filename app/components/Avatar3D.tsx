@@ -25,15 +25,22 @@ function ObjModel({ data }: { data: ModelData }) {
   obj.traverse((child) => {
     if ((child as THREE.Mesh).isMesh) {
       const mesh = child as THREE.Mesh;
+      const applyMaterialFix = (material: THREE.Material) => {
+        material.side = THREE.DoubleSide;
+        material.depthWrite = true;
+        // Force opacity to opaque in case the loaded MTL sets transparency.
+        (material as THREE.MeshStandardMaterial).transparent = false;
+        (material as THREE.MeshStandardMaterial).opacity = 1;
+        (material as THREE.MeshStandardMaterial).alphaTest = 0;
+        material.needsUpdate = true;
+      };
+
       if (Array.isArray(mesh.material)) {
         for (const m of mesh.material) {
-          (m as THREE.Material).side = THREE.DoubleSide;
-          (m as THREE.Material).depthWrite = true;
+          applyMaterialFix(m);
         }
       } else {
-        const mat = mesh.material as THREE.MeshStandardMaterial;
-        mat.side = THREE.DoubleSide;
-        mat.depthWrite = true;
+        applyMaterialFix(mesh.material);
       }
     }
   });

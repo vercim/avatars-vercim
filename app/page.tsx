@@ -6,6 +6,7 @@ import UserProfile from '@/components/UserProfile';
 import Avatar3D from '@/components/Avatar3D';
 import AccessoriesGrid from '@/components/AccessoriesGrid';
 import InventoryList from '@/components/InventoryList';
+import ThemeToggle from '@/components/ThemeToggle';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Spinner } from '@/components/ui/spinner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -127,6 +128,9 @@ export default function Home() {
             </Card>
           </>
         )}
+      <div className="flex justify-center pt-8 pb-4">
+        <ThemeToggle />
+      </div>
       </main>
     </div>
   );

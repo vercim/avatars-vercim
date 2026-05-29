@@ -148,21 +148,25 @@
     background: linear-gradient(
       var(--hologram-angle, 45deg),
       rgba(0, 255, 255, 0) 0%,
-      rgba(0, 255, 255, 0.08) 25%,
-      rgba(255, 0, 255, 0.07) 50%,
-      rgba(255, 255, 0, 0.06) 75%,
+      rgba(0, 255, 255, 0.16) 25%,
+      rgba(255, 0, 255, 0.14) 50%,
+      rgba(255, 255, 0, 0.12) 75%,
       rgba(0, 255, 255, 0) 100%
     );
     pointer-events: none;
     opacity: 0;
     transition: opacity 320ms cubic-bezier(.16,.84,.24,1), transform 320ms cubic-bezier(.16,.84,.24,1);
-    mix-blend-mode: screen;
+    mix-blend-mode: multiply;
     z-index: 999; /* put linear hologram layer above content */
     border-radius: inherit;
   }
 
+  .dark .hologram-card::before {
+    mix-blend-mode: screen;
+  }
+
   .hologram-card:hover::before {
-    opacity: 0.45; /* less intense */
+    opacity: 0.7;
     transform: translateZ(8px) scale(1.01);
   }
 
@@ -172,19 +176,23 @@
     inset: 0;
     background: radial-gradient(
       circle at var(--hologram-x, 50%) var(--hologram-y, 50%),
-      rgba(0, 255, 255, 0.11) 0%,
-      rgba(255, 0, 255, 0.08) 40%,
+      rgba(0, 255, 255, 0.22) 0%,
+      rgba(255, 0, 255, 0.16) 40%,
       rgba(255, 255, 0, 0) 100%
     );
     pointer-events: none;
     opacity: 0;
     transition: opacity 360ms cubic-bezier(.16,.84,.24,1), background-position 200ms ease-out;
-    mix-blend-mode: overlay;
+    mix-blend-mode: color-dodge;
     z-index: 1000; /* put radial hologram layer above content */
     border-radius: inherit;
   }
 
+  .dark .hologram-card::after {
+    mix-blend-mode: overlay;
+  }
+
   .hologram-card:hover::after {
-    opacity: 1; /* softer radial highlight */
+    opacity: 1;
   }
 }

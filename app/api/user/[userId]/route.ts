@@ -208,6 +208,9 @@ export async function GET(
   await delay(200);
 
   let inventoryAssets: number[] = [];
+  let inventoryAvailable = true;
+  let inventoryError: string | null = null;
+
   try {
     const cloudData = await fetchJson(`${INVENTORY_CLOUD_API}${userId}/inventory?limit=50`);
     inventoryAssets = ((cloudData.inventoryItems ?? []) as Array<Record<string, unknown>>)
@@ -220,8 +223,10 @@ export async function GET(
         `https://inventory.roblox.com/v2/users/${userId}/inventory?assetTypes=8,18,19,21,41,42,43,44,45,46,47,48,49,50&limit=50`
       );
       inventoryAssets = ((publicData.data ?? []) as Array<Record<string, unknown>>).map((item) => item.assetId as number);
-    } catch (error) {
-      logApiError('Failed to load inventory from public API', { userId }, error);
+    } catch (fallbackError) {
+      logApiError('Failed to load inventory from public API', { userId }, fallbackError);
+      inventoryAvailable = false;
+      inventoryError = getErrorMessage(fallbackError);
       // inventory is optional
     }
   }
@@ -271,5 +276,7 @@ export async function GET(
     avatarHeadshot,
     wornItems,
     inventoryItems,
+    inventoryAvailable,
+    inventoryError,
   });
 }
