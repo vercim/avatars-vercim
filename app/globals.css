@@ -129,6 +129,11 @@
     scrollbar-width: none;
     -ms-overflow-style: none;
   }
+  /* Images are decorative/content here — never draggable as files. */
+  img {
+    -webkit-user-drag: none;
+    user-select: none;
+  }
   html::-webkit-scrollbar {
     width: 0;
     height: 0;
@@ -181,10 +186,107 @@
 /* Search hint arrow (initial empty state)                            */
 /* ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ */
+/* Metallic "liquid metal" Search button (Apple-style)                */
+/* ------------------------------------------------------------------ */
+.metal-button {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  /* Dark engraved text on a brushed-silver face. */
+  color: oklch(0.2 0 0);
+  border: 1px solid oklch(0.74 0 0);
+  background: linear-gradient(
+    180deg,
+    oklch(0.98 0 0) 0%,
+    oklch(0.88 0 0) 16%,
+    oklch(0.72 0 0) 50%,
+    oklch(0.84 0 0) 84%,
+    oklch(0.96 0 0) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.75),
+    inset 0 -1px 1px oklch(0 0 0 / 0.22),
+    0 1px 2px oklch(0 0 0 / 0.4);
+  text-shadow: 0 1px 0 oklch(1 0 0 / 0.4);
+  transition:
+    filter 220ms var(--ease-metal, ease),
+    box-shadow 220ms ease;
+}
+
+/* Slow drifting sheen — the constant metallic shimmer. */
+.metal-button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    115deg,
+    transparent 30%,
+    oklch(1 0 0 / 0.55) 48%,
+    oklch(1 0 0 / 0.15) 56%,
+    transparent 72%
+  );
+  background-size: 260% 100%;
+  background-position: 160% 0;
+  animation: metal-shimmer 4.5s linear infinite;
+}
+
+/* Bright specular streak that sweeps across on hover. */
+.metal-button::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -65%;
+  width: 45%;
+  z-index: -1;
+  background: linear-gradient(
+    100deg,
+    transparent,
+    oklch(1 0 0 / 0.9),
+    transparent
+  );
+  transform: skewX(-18deg);
+  opacity: 0;
+}
+
+.metal-button:hover {
+  filter: brightness(1.07) contrast(1.04);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.9),
+    inset 0 -1px 1px oklch(0 0 0 / 0.22),
+    0 2px 7px oklch(0 0 0 / 0.45);
+}
+
+.metal-button:hover::after {
+  animation: metal-sweep 0.85s ease;
+}
+
+.metal-button:active {
+  filter: brightness(0.95);
+  box-shadow:
+    inset 0 1px 3px oklch(0 0 0 / 0.4),
+    0 1px 1px oklch(0 0 0 / 0.3);
+}
+
+@keyframes metal-shimmer {
+  0% { background-position: 160% 0; }
+  100% { background-position: -160% 0; }
+}
+
+@keyframes metal-sweep {
+  0% { left: -65%; opacity: 0; }
+  18% { opacity: 1; }
+  100% { left: 135%; opacity: 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .liquid-label,
   .search-hint,
-  .avatar-mark:hover {
+  .avatar-mark:hover,
+  .metal-button::before,
+  .metal-button:hover::after {
     animation: none;
   }
 }

@@ -1,9 +1,11 @@
 'use client';
 import { useEffect, useRef, useState, type Ref } from 'react';
+import { TextMorph } from 'torph/react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Search, BadgeCheck } from 'lucide-react';
 import type { UserSuggestion } from '@/api/search-users/route';
+import { getSearchStatus } from '@/lib/searchRateLimit';
 
 interface Props {
   onSearch: (userId: string) => void;
@@ -25,6 +27,8 @@ export default function SearchBar({ onSearch, loading, buttonRef }: Props) {
   const [suggestions, setSuggestions] = useState<UserSuggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  // Live throttle state shown on the Search button (null = ready).
+  const [cooldown, setCooldown] = useState<{ seconds: number; hourly: boolean } | null>(null);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   // Used to ignore stale autocomplete responses that resolve out of order.
@@ -82,6 +86,27 @@ export default function SearchBar({ onSearch, loading, buttonRef }: Props) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Poll the throttle state so the button can count down in real time.
+  useEffect(() => {
+    const tick = () => {
+      const status = getSearchStatus();
+      if (status.allowed) {
+        setCooldown((prev) => (prev === null ? prev : null));
+        return;
+      }
+      const seconds = Math.ceil(status.waitMs / 1000);
+      setCooldown((prev) =>
+        prev && prev.seconds === seconds && prev.hourly === status.hourlyLimited
+          ? prev
+          : { seconds, hourly: status.hourlyLimited },
+      );
+    };
+
+    tick();
+    const id = window.setInterval(tick, 400);
+    return () => window.clearInterval(id);
+  }, []);
+
   const selectSuggestion = (suggestion: UserSuggestion) => {
     skipNextSuggestRef.current = true;
     setValue(suggestion.name);
@@ -117,6 +142,8 @@ export default function SearchBar({ onSearch, loading, buttonRef }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Blocked by cooldown / hourly limit — the button shows why.
+    if (!getSearchStatus().allowed) return;
     const trimmed = value.trim();
     if (!trimmed) return;
 
@@ -157,6 +184,13 @@ export default function SearchBar({ onSearch, loading, buttonRef }: Props) {
   };
 
   const isBusy = loading || resolving;
+  const buttonLabel = isBusy
+    ? 'Searching...'
+    : cooldown
+      ? cooldown.hourly
+        ? `${Math.ceil(cooldown.seconds / 60)} min`
+        : `${cooldown.seconds}s`
+      : 'Search';
 
   return (
     <form onSubmit={handleSubmit} className="max-w-md mx-auto">
@@ -210,8 +244,13 @@ export default function SearchBar({ onSearch, loading, buttonRef }: Props) {
           )}
         </div>
 
-        <Button ref={buttonRef} type="submit" disabled={isBusy} className="h-10 cursor-pointer">
-          {isBusy ? 'Searching...' : 'Search'}
+        <Button
+          ref={buttonRef}
+          type="submit"
+          disabled={isBusy || cooldown !== null}
+          className="font-bold metal-button h-10 min-w-[104px] cursor-pointer justify-center tabular-nums"
+        >
+          <TextMorph>{buttonLabel}</TextMorph>
         </Button>
       </div>
     </form>

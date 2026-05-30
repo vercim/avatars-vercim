@@ -9,6 +9,7 @@ import Avatar3D from '@/components/Avatar3D';
 import AccessoriesGrid from '@/components/AccessoriesGrid';
 import InventoryList from '@/components/InventoryList';
 import LiquidLoader from '@/components/LiquidLoader';
+import { getSearchStatus, recordSearch } from '@/lib/searchRateLimit';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -34,6 +35,10 @@ export default function Home() {
   const [error, setError] = useState('');
 
   const loadUser = useCallback(async (id: string) => {
+    // Throttled — the Search button surfaces the countdown, so just bail.
+    if (!getSearchStatus().allowed) return;
+
+    recordSearch();
     setLoading(true);
     setError('');
     try {
@@ -122,7 +127,17 @@ export default function Home() {
 
                 <Card>
                   <CardHeader>
-                    <CardTitle>Equipped ({data.wornItems.length})</CardTitle>
+                    <CardTitle className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                      <span>Equipped ({data.wornItems.length})</span>
+                      {(() => {
+                        const total = data.wornItems.reduce((sum, item) => sum + (item.price ?? 0), 0);
+                        return total > 0 ? (
+                          <span className="text-sm font-normal text-muted-foreground">
+                            · {total.toLocaleString('en-US')} Robux
+                          </span>
+                        ) : null;
+                      })()}
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <AccessoriesGrid items={data.wornItems} />
