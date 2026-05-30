@@ -11,7 +11,7 @@
  */
 
 const STORAGE_KEY = 'avatars:search-history';
-export const HOURLY_LIMIT = 30;
+export const HOURLY_LIMIT = 25;
 export const COOLDOWN_MS = 15_000;
 const HOUR_MS = 60 * 60 * 1000;
 

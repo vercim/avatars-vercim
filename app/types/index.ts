@@ -13,6 +13,8 @@ export interface AssetInfo {
   assetId: number;
   name: string;
   price: number | null;
+  /** Friendly item category, e.g. "Hair", "Hat" (null when unknown). */
+  assetType: string | null;
   description: string;
   thumbnailUrl: string;
   catalogUrl: string;

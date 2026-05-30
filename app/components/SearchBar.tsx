@@ -12,17 +12,23 @@ interface Props {
   loading: boolean;
   /** Forwarded to the submit button so external UI can point at it. */
   buttonRef?: Ref<HTMLButtonElement>;
+  /** Fired when the input is cleared to empty. */
+  onClear?: () => void;
+  /** Initial value for the search input (used on mount). */
+  initialValue?: string;
 }
 
-const SUGGEST_DEBOUNCE_MS = 250;
+const SUGGEST_DEBOUNCE_MS = 300;
+// Throttle: refresh suggestions at most once per this interval.
+const SUGGEST_MIN_INTERVAL_MS = 2000;
 const MIN_QUERY_LENGTH = 2;
 
 function isNumeric(value: string): boolean {
   return /^\d+$/.test(value.trim());
 }
 
-export default function SearchBar({ onSearch, loading, buttonRef }: Props) {
-  const [value, setValue] = useState('2254875642');
+export default function SearchBar({ onSearch, loading, buttonRef, onClear, initialValue = '2254875642' }: Props) {
+  const [value, setValue] = useState(initialValue);
   const [resolving, setResolving] = useState(false);
   const [suggestions, setSuggestions] = useState<UserSuggestion[]>([]);
   const [open, setOpen] = useState(false);
@@ -35,6 +41,8 @@ export default function SearchBar({ onSearch, loading, buttonRef }: Props) {
   const requestIdRef = useRef(0);
   // Set right after a selection so the value-change effect doesn't re-open the list.
   const skipNextSuggestRef = useRef(false);
+  // Timestamp of the last fired suggestion request, for throttling.
+  const lastSuggestRef = useRef(0);
 
   // Debounced username suggestions.
   useEffect(() => {
@@ -53,7 +61,11 @@ export default function SearchBar({ onSearch, loading, buttonRef }: Props) {
 
     const requestId = ++requestIdRef.current;
     const controller = new AbortController();
+    // Debounce after the keystroke, but never fire more than once per interval.
+    const sinceLast = Date.now() - lastSuggestRef.current;
+    const wait = Math.max(SUGGEST_DEBOUNCE_MS, SUGGEST_MIN_INTERVAL_MS - sinceLast);
     const timer = setTimeout(async () => {
+      lastSuggestRef.current = Date.now();
       try {
         const res = await fetch(`/api/search-users?keyword=${encodeURIComponent(trimmed)}`, {
           signal: controller.signal,
@@ -67,7 +79,7 @@ export default function SearchBar({ onSearch, loading, buttonRef }: Props) {
       } catch {
         // aborted or network error — ignore, keep current state
       }
-    }, SUGGEST_DEBOUNCE_MS);
+    }, wait);
 
     return () => {
       controller.abort();
@@ -193,14 +205,18 @@ export default function SearchBar({ onSearch, loading, buttonRef }: Props) {
       : 'Search';
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-md mx-auto">
+    <form onSubmit={handleSubmit} className="backdrop-blur-lg max-w-md mx-auto">
       <div className="flex justify-center gap-2">
         <div ref={containerRef} className="relative flex-1">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none z-10" />
           <Input
             type="text"
             value={value}
-            onChange={(e) => setValue(e.target.value)}
+            onChange={(e) => {
+                const next = e.target.value;
+                setValue(next);
+                if (next === '') onClear?.();
+              }}
             onKeyDown={handleKeyDown}
             onFocus={() => suggestions.length > 0 && setOpen(true)}
             placeholder="Username or user ID..."
@@ -226,7 +242,7 @@ export default function SearchBar({ onSearch, loading, buttonRef }: Props) {
                       selectSuggestion(s);
                     }}
                     onMouseEnter={() => setActiveIndex(i)}
-                    className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition-colors ${
+                    className={`cursor-pointer flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition-colors ${
                       i === activeIndex ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/60'
                     }`}
                   >

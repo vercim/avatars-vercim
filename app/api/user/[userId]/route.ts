@@ -15,6 +15,61 @@ const ITEM_DETAILS_API = 'https://economy.roblox.com/v2/assets/';
 const INVENTORY_CLOUD_API = 'https://apis.roblox.com/cloud/v2/users/';
 const THUMBNAIL_API = 'https://thumbnails.roblox.com/v1/';
 
+// Roblox AssetTypeId → short, friendly category label shown on item cards.
+const ASSET_TYPE_LABELS: Record<number, string> = {
+  // Avatar wearables
+  2: 'T-Shirt',
+  8: 'Hat',
+  11: 'Shirt',
+  12: 'Pants',
+  17: 'Head',
+  18: 'Face',
+  19: 'Gear',
+  41: 'Hair',
+  42: 'Face',
+  43: 'Neck',
+  44: 'Shoulder',
+  45: 'Front',
+  46: 'Back',
+  47: 'Waist',
+  57: 'Ear',
+  58: 'Eye',
+  64: 'T-Shirt',
+  65: 'Shirt',
+  66: 'Pants',
+  67: 'Jacket',
+  68: 'Sweater',
+  69: 'Shorts',
+  70: 'Left Shoe',
+  71: 'Right Shoe',
+  72: 'Skirt',
+  73: 'Dress',
+  76: 'Eyebrow',
+  77: 'Eyelash',
+  79: 'Head',
+  // Non-avatar / development types (used for filtering only)
+  1: 'Image',
+  3: 'Audio',
+  4: 'Mesh',
+  5: 'Lua',
+  6: 'HTML',
+  7: 'Text',
+  9: 'Place',
+  10: 'Model',
+  13: 'Decal',
+  21: 'Badge',
+  24: 'Animation',
+  34: 'Gamepass',
+  38: 'Plugin',
+  40: 'MeshPart',
+  48: 'AnimationAsset',
+  49: 'AnimationAsset',
+};
+
+function assetTypeLabel(typeId: unknown): string | null {
+  return typeof typeId === 'number' ? (ASSET_TYPE_LABELS[typeId] ?? null) : null;
+}
+
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function getRobloxHeaders(customHeaders?: HeadersInit) {
@@ -86,17 +141,25 @@ async function fetchJson(
   }
 }
 
-async function getItemDetails(assetId: number): Promise<{ name: string; price: number | null; description: string }> {
+interface ItemDetails {
+  name: string;
+  price: number | null;
+  assetType: string | null;
+  description: string;
+}
+
+async function getItemDetails(assetId: number): Promise<ItemDetails> {
   try {
     const data = await fetchJson(`${ITEM_DETAILS_API}${assetId}/details`);
     return {
       name: String(data.Name ?? `Item ${assetId}`),
       price: typeof data.PriceInRobux === 'number' ? data.PriceInRobux : data.IsFree ? 0 : null,
+      assetType: assetTypeLabel(data.AssetTypeId),
       description: String(data.Description ?? ''),
     };
   } catch (error) {
     logApiError('Failed to fetch item details', { assetId }, error);
-    return { name: `Item ${assetId}`, price: null, description: '' };
+    return { name: `Item ${assetId}`, price: null, assetType: null, description: '' };
   }
 }
 
@@ -216,13 +279,13 @@ export async function GET(
   let inventoryError: string | null = null;
 
   try {
-    // Use a short timeout for inventory so failures don't block the whole response
-    const cloudPromise = fetchJson(`${INVENTORY_CLOUD_API}${userId}/inventory?limit=50`, {}, true, 1);
-    const cloudData = await Promise.race([cloudPromise, delay(2000).then(() => null)]);
+    // Open Cloud v2 inventory: assetId is nested under assetDetails and is a string.
+    const cloudPromise = fetchJson(`${INVENTORY_CLOUD_API}${userId}/inventory-items?maxPageSize=100`, {}, true, 1);
+    const cloudData = await Promise.race([cloudPromise, delay(2500).then(() => null)]);
     if (cloudData) {
-      inventoryAssets = ((cloudData.inventoryItems ?? []) as Array<Record<string, unknown>>)
-        .map((item) => item.assetId as number)
-        .filter(Boolean);
+      inventoryAssets = ((cloudData.inventoryItems ?? []) as Array<{ assetDetails?: { assetId?: string | number } }>)
+        .map((item) => Number(item.assetDetails?.assetId))
+        .filter((id) => Number.isFinite(id) && id > 0);
     } else {
       throw new Error('Cloud inventory timed out');
     }
@@ -257,7 +320,7 @@ export async function GET(
 
   const [detailsMap, thumbnailMap] = await Promise.all([
     (async () => {
-      const map = new Map<number, { name: string; price: number | null; description: string }>();
+      const map = new Map<number, ItemDetails>();
       const CONCURRENCY = 5;
       let idx = 0;
       async function worker() {
@@ -269,7 +332,7 @@ export async function GET(
             const details = await getItemDetails(id);
             map.set(id, details);
           } catch (error) {
-            map.set(id, { name: `Item ${id}`, price: null, description: '' });
+            map.set(id, { name: `Item ${id}`, price: null, assetType: null, description: '' });
           }
         }
       }
@@ -280,11 +343,12 @@ export async function GET(
   ]);
 
   const formatAsset = (id: number, worn: boolean) => {
-    const det = detailsMap.get(id) ?? { name: `Item ${id}`, price: null, description: '' };
+    const det = detailsMap.get(id) ?? { name: `Item ${id}`, price: null, assetType: null, description: '' };
     return {
       assetId: id,
       name: det.name,
       price: det.price,
+      assetType: det.assetType,
       description: det.description,
       thumbnailUrl: thumbnailMap.get(id) ?? `https://www.roblox.com/asset-thumbnail/image?assetId=${id}&width=150&height=150&format=png`,
       catalogUrl: `https://www.roblox.com/catalog/${id}`,

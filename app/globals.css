@@ -281,12 +281,32 @@
   100% { left: 135%; opacity: 0; }
 }
 
+/* ------------------------------------------------------------------ */
+/* Marquee — slides overflowing text back and forth (transit-board)   */
+/* ------------------------------------------------------------------ */
+.marquee-track {
+  will-change: transform;
+  animation: marquee-shift 4s ease-in-out infinite alternate;
+}
+
+@keyframes marquee-shift {
+  from { transform: translateX(0); }
+  to { transform: translateX(calc(var(--marquee-shift, 0px) * -1)); }
+}
+
+/* ------------------------------------------------------------------ */
+/* Spark floating decoration (search-hint companion)                  */
+/* ------------------------------------------------------------------ */
+/* spark-float is driven by JS via requestAnimationFrame — no CSS keyframes needed */
+
 @media (prefers-reduced-motion: reduce) {
   .liquid-label,
   .search-hint,
   .avatar-mark:hover,
   .metal-button::before,
-  .metal-button:hover::after {
+  .metal-button:hover::after,
+  .marquee-track,
+  .spark-float {
     animation: none;
   }
 }

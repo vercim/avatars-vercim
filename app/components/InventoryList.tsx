@@ -20,7 +20,7 @@ export default function InventoryList({
   }
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[500px] overflow-y-auto pr-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
       {items.map((item) => (
         <TooltipCard key={item.assetId} item={item} showWornBadge />
       ))}

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+
 
 interface SearchHintArrowProps {
   /** The element the arrow tip should always point at. */
@@ -20,6 +21,9 @@ const WIDTH_DESKTOP = 196;
 const MOBILE_MAX_WIDTH = 640;
 const TIP_GAP = 30;
 
+// Gap between the spark and the arrow.
+const SPARK_GAP = 26;
+
 interface ArrowPos {
   left: number;
   top: number;
@@ -33,7 +37,32 @@ interface ArrowPos {
  */
 export default function SearchHintArrow({ targetRef }: SearchHintArrowProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
+  const rafRef = useRef<number | null>(null);
   const [pos, setPos] = useState<ArrowPos | null>(null);
+
+  // Callback ref fires the moment the element enters/leaves the DOM —
+  // unlike useRef+useEffect which misses the mount because pos starts null.
+  const sparkCallbackRef = useCallback((el: HTMLImageElement | null) => {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t = (now - start) / 1000;
+      const y = -5  * Math.sin(t * 1.1) - 1.5 * Math.sin(t * 2.3 + 0.8);
+      const x =  3  * Math.sin(t * 0.7 + 0.4) + 1 * Math.sin(t * 1.9 + 1.2);
+      const s = 1 + 0.03 * Math.sin(t * 0.9 + 0.6) + 0.01 * Math.sin(t * 2.1);
+      const r = 2.5 * Math.sin(t * 0.5 + 0.3) + 1 * Math.sin(t * 1.7);
+      el.style.transform =
+        `translate(${x.toFixed(2)}px,${y.toFixed(2)}px) ` +
+        `scale(${s.toFixed(4)}) rotate(${r.toFixed(2)}deg)`;
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+  }, []);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -72,6 +101,10 @@ export default function SearchHintArrow({ targetRef }: SearchHintArrowProps) {
     };
   }, [targetRef]);
 
+  const sparkPos = pos
+    ? { left: pos.left - pos.width - SPARK_GAP, top: pos.top + 60 }
+    : null;
+
   return (
     <div
       ref={hostRef}
@@ -85,6 +118,16 @@ export default function SearchHintArrow({ targetRef }: SearchHintArrowProps) {
           draggable={false}
           className="pointer-events-none absolute select-none [-webkit-user-drag:none]"
           style={{ left: pos.left, top: pos.top, width: pos.width }}
+        />
+      )}
+      {sparkPos && (
+        <img
+          ref={sparkCallbackRef}
+          src="/drawn_spark.svg"
+          alt=""
+          draggable={false}
+          className="pointer-events-none absolute select-none [-webkit-user-drag:none]"
+          style={{ left: sparkPos.left, top: sparkPos.top, width: pos!.width }}
         />
       )}
     </div>

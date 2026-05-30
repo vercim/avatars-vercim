@@ -1,7 +1,6 @@
 'use client';
-import { Canvas } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
-import { useEffect, useState } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { useEffect, useRef, useState } from 'react';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 import * as THREE from 'three';
@@ -29,7 +28,11 @@ function toStudioMaterial(material: THREE.Material): THREE.MeshStandardMaterial 
 
   const studio = new THREE.MeshStandardMaterial({
     map,
-    color: src.color ? src.color.clone() : new THREE.Color(0xffffff),
+    // When a texture is present, Roblox MTL files often set Kd to black (0,0,0)
+    // because the texture is the sole color source. MeshStandardMaterial multiplies
+    // map × color, so a black Kd would make any texture render black. Use white
+    // when a map is present so the texture shows its true colors.
+    color: map ? new THREE.Color(0xffffff) : (src.color ? src.color.clone() : new THREE.Color(0xffffff)),
     roughness: 0.85,
     metalness: 0,
     side: THREE.DoubleSide,
@@ -57,6 +60,58 @@ function disposeObject(object: THREE.Object3D): void {
   });
 }
 
+// --- Camera rig ----------------------------------------------------------
+// The model is static; the "spin" is the camera orbiting it. On hover we
+// smoothly steer the camera to a fixed dramatic angle and freeze the spin;
+// on leave we ease back and resume orbiting.
+
+// Canvas is 160% of the visual frame (inset -30% on each side), so the camera
+// must be 1.6× further back to keep the model the same apparent size in the frame.
+const CANVAS_SCALE = 1.6;
+const NORMAL_RADIUS = 25 * CANVAS_SCALE;          // ≈ 40
+// rad/s — matches the old OrbitControls autoRotateSpeed of 1.25 (2π/60 * speed).
+const ROTATE_SPEED = ((2 * Math.PI) / 60) * 1.25;
+// Bottom-left, pulled in much closer for a strong hero perspective.
+// Also scaled by CANVAS_SCALE so the effective zoom ratio in the frame is preserved.
+const HOVER_CAMERA_POS = new THREE.Vector3(-5 * CANVAS_SCALE, -4 * CANVAS_SCALE, 10 * CANVAS_SCALE);
+const ORBIT_TARGET = new THREE.Vector3(0, 1, 0);
+// Exponential-smoothing rate for the hover blend; higher = snappier.
+const TRANSITION_SPEED = 1.25;
+
+function easeInOut(x: number): number {
+  return x < 0.5 ? 2 * x * x : 1 - (-2 * x + 2) ** 2 / 2;
+}
+
+function CameraRig({ hovered }: { hovered: boolean }) {
+  const { camera } = useThree();
+  const angle = useRef(0);
+  const blend = useRef(0);
+  const scratch = useRef(new THREE.Vector3()).current;
+
+  useFrame((_, delta) => {
+    // Guard against large jumps after a tab switch or stall.
+    const dt = Math.min(delta, 0.05);
+
+    const target = hovered ? 1 : 0;
+    blend.current += (target - blend.current) * Math.min(1, dt * TRANSITION_SPEED);
+    const t = easeInOut(blend.current);
+
+    // Spin eases to a stop as the hover blend approaches 1.
+    angle.current += ROTATE_SPEED * dt * (1 - t);
+
+    scratch.set(
+      Math.sin(angle.current) * NORMAL_RADIUS,
+      0,
+      Math.cos(angle.current) * NORMAL_RADIUS,
+    );
+    scratch.lerp(HOVER_CAMERA_POS, t);
+    camera.position.copy(scratch);
+    camera.lookAt(ORBIT_TARGET);
+  });
+
+  return null;
+}
+
 interface Avatar3DProps {
   userId: string;
   thumbnailUrl?: string | null;
@@ -67,6 +122,7 @@ export default function Avatar3D({ userId, thumbnailUrl }: Avatar3DProps) {
   const [fetching, setFetching] = useState(true);
   const [object, setObject] = useState<THREE.Object3D | null>(null);
   const [failed, setFailed] = useState(false);
+  const [hovered, setHovered] = useState(false);
 
   // 1) Fetch the model metadata (URLs + bounds).
   useEffect(() => {
@@ -110,11 +166,13 @@ export default function Avatar3D({ userId, thumbnailUrl }: Avatar3DProps) {
     let cancelled = false;
     let loaded: THREE.Object3D | null = null;
     const manager = new THREE.LoadingManager();
+    let hasError = false;
 
     manager.onLoad = () => {
-      if (!cancelled && loaded) setObject(loaded);
+      if (!cancelled && loaded && !hasError) setObject(loaded);
     };
     manager.onError = () => {
+      hasError = true;
       if (!cancelled) setFailed(true);
     };
 
@@ -184,16 +242,27 @@ export default function Avatar3D({ userId, thumbnailUrl }: Avatar3DProps) {
 
   if (object) {
     return (
-      <div className="w-full aspect-square animate-in fade-in duration-500">
+      <div className="w-full aspect-square animate-in fade-in duration-500 relative">
+        {/* Transparent hover-capture layer — sits above the z-index stack so
+            pointer events reach it even though the canvas is behind UI. */}
+        <div
+          className="absolute inset-0 z-10"
+          onPointerEnter={() => setHovered(true)}
+          onPointerLeave={() => setHovered(false)}
+        />
+        {/* Canvas is 160% of the visual frame so the model can bleed outside the
+            frame boundary on hover. -z-10 keeps it behind UI elements. */}
+        <div className="absolute inset-[-30%] pointer-events-none -z-10">
         <Canvas
           shadows="soft"
-          camera={{ position: [0, 0, 25], fov: 30 }}
+          camera={{ position: [0, 0, 40], fov: 30 }}
           gl={{ alpha: true, antialias: true }}
           onCreated={({ gl }) => {
             gl.toneMapping = THREE.ACESFilmicToneMapping;
             gl.toneMappingExposure = 1.05;
           }}
         >
+          <CameraRig hovered={hovered} />
           {/* Studio three-point rig — soft, render-like form shading with
               self-shadows, no glare. No ground plane = no floor shadow. */}
           <hemisphereLight args={['#ffffff', '#9a9a9a', 0.55]} />
@@ -220,18 +289,8 @@ export default function Avatar3D({ userId, thumbnailUrl }: Avatar3DProps) {
           {/* Rim / back light — separates the silhouette. */}
           <directionalLight position={[-3, 6, -7]} intensity={0.9} />
           <primitive object={object} />
-          <OrbitControls
-            target={[0, 0, 0]}
-            enableDamping
-            dampingFactor={0.08}
-            autoRotate
-            autoRotateSpeed={1.25}
-            enableZoom={false}
-            enablePan={false}
-            minDistance={25}
-            maxDistance={25}
-          />
         </Canvas>
+        </div>
       </div>
     );
   }

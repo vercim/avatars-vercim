@@ -8,7 +8,7 @@ export default function AccessoriesGrid({ items }: { items: AssetInfo[] }) {
   }
 
   return (
-    <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
+    <div className="p-1.5 grid grid-cols-3 sm:grid-cols-4 gap-4 max-h-[280px] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
       {items.map((item) => (
         <TooltipCard key={item.assetId} item={item} />
       ))}

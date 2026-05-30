@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface LiquidLoaderProps {
   label?: string;
@@ -45,6 +45,12 @@ export default function LiquidLoader({
   size = 132,
 }: LiquidLoaderProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [seconds, setSeconds] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => setSeconds(s => s + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -140,7 +146,12 @@ export default function LiquidLoader({
         aria-label={label}
       />
 
-      <p className="liquid-label text-sm text-muted-foreground">{label}</p>
+      <p className="liquid-label text-sm text-muted-foreground">
+        {label}
+        {seconds > 0 && (
+          <span className="ml-2 tabular-nums opacity-60">{seconds}s</span>
+        )}
+      </p>
 
       {/* Alpha-threshold goo filter — fuses overlapping shapes into one mass. */}
       <svg className="absolute size-0" aria-hidden="true">

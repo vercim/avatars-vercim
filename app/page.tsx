@@ -33,12 +33,18 @@ export default function Home() {
   const [data, setData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [resetKey, setResetKey] = useState(0);
+
+  const handleReset = () => {
+    setData(null);
+    setError('');
+    setResetKey(k => k + 1);
+  };
 
   const loadUser = useCallback(async (id: string) => {
     // Throttled — the Search button surfaces the countdown, so just bail.
     if (!getSearchStatus().allowed) return;
 
-    recordSearch();
     setLoading(true);
     setError('');
     try {
@@ -56,6 +62,8 @@ export default function Home() {
       if (!userData.user) throw new Error('User not found');
       setData(userData);
       setUserId(id);
+      // Start the cooldown / count the request only on a successful find.
+      recordSearch();
     } catch (e) {
       if (e instanceof Error && e.name === 'AbortError') {
         setError('Request timed out after 1 minute. Please try again later or check your network connection.');
@@ -95,14 +103,22 @@ export default function Home() {
         <section className="flex flex-col items-center text-center gap-3">
           <h1 className="leading-none">
             <span className="sr-only">avatars.verc.im</span>
-            <AvatarMark className="size-9 sm:size-11 text-foreground cursor-pointer" />
+            <button type="button" onClick={handleReset} className="cursor-pointer">
+                <AvatarMark className="size-9 sm:size-11 text-foreground" />
+              </button>
           </h1>
           <p className="text-sm text-muted-foreground max-w-md">
             Enter a username or user ID to see their avatar and inventory
           </p>
         </section>
 
-        <SearchBar onSearch={loadUser} loading={isLoading} buttonRef={searchButtonRef} />
+        <SearchBar
+          key={resetKey}
+          onSearch={loadUser}
+          loading={isLoading}
+          buttonRef={searchButtonRef}
+          onClear={() => { setData(null); setError(''); }}
+        />
 
         {!data && !isLoading && !error && (
           <SearchHintArrow targetRef={searchButtonRef} />
@@ -146,14 +162,22 @@ export default function Home() {
               </div>
             </section>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Inventory ({data.inventoryItems.length})</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <InventoryList items={data.inventoryItems} />
-              </CardContent>
-            </Card>
+            {(() => {
+              const DEV_TYPES = new Set(['Image', 'Audio', 'Mesh', 'Lua', 'HTML', 'Text', 'Place', 'Model', 'Decal', 'Badge', 'Animation', 'Gamepass', 'Plugin', 'MeshPart', 'AnimationAsset']);
+              const visibleItems = data.inventoryItems.filter(
+                (item) => item.assetType === null || !DEV_TYPES.has(item.assetType)
+              );
+              return (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Inventory ({visibleItems.length})</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <InventoryList items={visibleItems} inventoryAvailable={data.inventoryAvailable} />
+                  </CardContent>
+                </Card>
+              );
+            })()}
           </>
         )}
       </main>
