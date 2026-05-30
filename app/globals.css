@@ -135,70 +135,56 @@
   }
 }
 
-@layer components {
-  .hologram-card {
-    position: relative;
-    overflow: hidden;
-  }
+/* ------------------------------------------------------------------ */
+/* Liquid / morphic loader (canvas-driven, monochromatic)             */
+/* ------------------------------------------------------------------ */
+.liquid-canvas {
+  /* The motion is computed per-frame in TS; this filter only fuses the
+     overlapping shapes into one seamless liquid surface. */
+  filter: url(#liquid-goo);
+  will-change: contents;
+}
 
-  /* ensure content sits below hologram layers so effect appears on top */
-  .hologram-card > * {
-    position: relative;
-    z-index: 0;
-  }
+.liquid-label {
+  animation: liquid-pulse 1.8s ease-in-out infinite;
+}
 
-  .hologram-card::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      var(--hologram-angle, 45deg),
-      rgba(0, 255, 255, 0) 0%,
-      rgba(0, 255, 255, 0.16) 25%,
-      rgba(255, 0, 255, 0.14) 50%,
-      rgba(255, 255, 0, 0.12) 75%,
-      rgba(0, 255, 255, 0) 100%
-    );
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 320ms cubic-bezier(.16,.84,.24,1), transform 320ms cubic-bezier(.16,.84,.24,1);
-    mix-blend-mode: multiply;
-    z-index: 999; /* put linear hologram layer above content */
-    border-radius: inherit;
-  }
+/* ------------------------------------------------------------------ */
+/* Avatar brand mark — squash & spring on hover                       */
+/* ------------------------------------------------------------------ */
+.avatar-mark {
+  /* Compress onto its "feet" so the squash reads like a spring landing. */
+  transform-origin: 50% 100%;
+  transform: translateZ(0);
+  will-change: transform;
+}
 
-  .dark .hologram-card::before {
-    mix-blend-mode: screen;
-  }
+.avatar-mark:hover {
+  animation: avatar-spring 0.62s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
 
-  .hologram-card:hover::before {
-    opacity: 0.7;
-    transform: translateZ(8px) scale(1.01);
-  }
+@keyframes avatar-spring {
+  0% { transform: scale(1, 1); }
+  22% { transform: scale(1.18, 0.78); }   /* squash down */
+  44% { transform: scale(0.9, 1.14); }    /* spring up / stretch */
+  62% { transform: scale(1.07, 0.95); }
+  78% { transform: scale(0.97, 1.03); }
+  90% { transform: scale(1.02, 0.99); }
+  100% { transform: scale(1, 1); }
+}
+@keyframes liquid-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
 
-  .hologram-card::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(
-      circle at var(--hologram-x, 50%) var(--hologram-y, 50%),
-      rgba(0, 255, 255, 0.22) 0%,
-      rgba(255, 0, 255, 0.16) 40%,
-      rgba(255, 255, 0, 0) 100%
-    );
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 360ms cubic-bezier(.16,.84,.24,1), background-position 200ms ease-out;
-    mix-blend-mode: color-dodge;
-    z-index: 1000; /* put radial hologram layer above content */
-    border-radius: inherit;
-  }
+/* ------------------------------------------------------------------ */
+/* Search hint arrow (initial empty state)                            */
+/* ------------------------------------------------------------------ */
 
-  .dark .hologram-card::after {
-    mix-blend-mode: overlay;
-  }
-
-  .hologram-card:hover::after {
-    opacity: 1;
+@media (prefers-reduced-motion: reduce) {
+  .liquid-label,
+  .search-hint,
+  .avatar-mark:hover {
+    animation: none;
   }
 }

@@ -1,5 +1,6 @@
 'use client';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
+import { TextMorph } from 'torph/react';
 import { AssetInfo } from '@/types';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -8,10 +9,19 @@ const MAX_ROTATE_X = 10;
 const MAX_ROTATE_Y = 12;
 const MAX_SCALE = 1.06;
 
+function formatPrice(price: number | null): string {
+  if (price === null) return 'Off-sale';
+  if (price === 0) return 'Free';
+  return `${price.toLocaleString('en-US')} R$`;
+}
+
 export default function TooltipCard({ item, showWornBadge = false }: { item: AssetInfo; showWornBadge?: boolean }) {
   const cardRef = useRef<HTMLDivElement | null>(null);
   const frameRef = useRef<number | null>(null);
   const pendingTransform = useRef('rotateX(0deg) rotateY(0deg) scale(1)');
+  const [hovered, setHovered] = useState(false);
+
+  const label = hovered ? formatPrice(item.price) : item.name;
 
   const updateTransform = (transform: string) => {
     pendingTransform.current = transform;
@@ -25,6 +35,21 @@ export default function TooltipCard({ item, showWornBadge = false }: { item: Ass
     }
   };
 
+  const handleClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    // Let the browser handle modifier/middle clicks (new tab, etc.) natively.
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
+
+    // Open the catalog in a new tab, but keep focus on this page.
+    const opened = window.open(item.catalogUrl, '_blank', 'noopener,noreferrer');
+    if (opened) {
+      opened.blur();
+      window.focus();
+    }
+  };
+
   const handleMouseMove = (event: React.MouseEvent<HTMLAnchorElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     const x = (event.clientX - rect.left) / rect.width;
@@ -32,16 +57,10 @@ export default function TooltipCard({ item, showWornBadge = false }: { item: Ass
     const rotateY = (x - 0.5) * 2 * MAX_ROTATE_Y * -1;
     const rotateX = (y - 0.5) * 2 * MAX_ROTATE_X;
     updateTransform(`rotateX(${rotateX.toFixed(2)}deg) rotateY(${rotateY.toFixed(2)}deg) scale(${MAX_SCALE})`);
-
-    if (cardRef.current) {
-      const angle = Math.atan2(rotateX, rotateY) * (180 / Math.PI);
-      cardRef.current.style.setProperty('--hologram-angle', `${angle}deg`);
-      cardRef.current.style.setProperty('--hologram-x', `${x * 100}%`);
-      cardRef.current.style.setProperty('--hologram-y', `${y * 100}%`);
-    }
   };
 
   const handleMouseLeave = () => {
+    setHovered(false);
     if (frameRef.current !== null) {
       cancelAnimationFrame(frameRef.current);
       frameRef.current = null;
@@ -54,18 +73,17 @@ export default function TooltipCard({ item, showWornBadge = false }: { item: Ass
       href={item.catalogUrl}
       target="_blank"
       rel="noopener noreferrer"
-      className="block relative duration-150 ease-out will-change-transform"
+      className="block relative will-change-transform"
       style={{ perspective: 1000 }}
+      onClick={handleClick}
+      onMouseEnter={() => setHovered(true)}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
       <Card
         ref={cardRef}
-        className="p-2 cursor-pointer transition-transform duration-150 ease-out will-change-transform bg-secondary border-0 hologram-card"
-        style={{
-          transform: 'rotateX(0deg) rotateY(0deg) scale(1)',
-          transformStyle: 'preserve-3d',
-        }}
+        className="relative overflow-hidden p-2 cursor-pointer bg-secondary border-0 transition-transform duration-150 ease-out will-change-transform"
+        style={{ transform: 'rotateX(0deg) rotateY(0deg) scale(1)' }}
       >
         <img
           src={item.thumbnailUrl}
@@ -73,7 +91,11 @@ export default function TooltipCard({ item, showWornBadge = false }: { item: Ass
           className="w-full aspect-square object-contain bg-muted rounded-md"
           loading="lazy"
         />
-        <p className="text-xs mt-1 truncate text-foreground/80">{item.name}</p>
+        <p className="text-xs mt-1 overflow-hidden whitespace-nowrap text-foreground/80">
+          <TextMorph as="span" className="block tabular-nums" ease={{ stiffness: 200, damping: 22 }}>
+            {label}
+          </TextMorph>
+        </p>
         {showWornBadge && item.worn && (
           <Badge variant="destructive" className="absolute top-1 right-1 text-[0.6rem] px-1 py-0">
             worn

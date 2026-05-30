@@ -98,8 +98,8 @@ export default function Avatar3D({ userId, thumbnailUrl }: Avatar3DProps) {
     return (
       <div className="w-full aspect-square">
         <Canvas camera={{ position: [0, 0, 25], fov: 30 }} gl={{ alpha: true }}>
-          <ambientLight intensity={0.8} />
-          <directionalLight position={[5, 5, 5]} intensity={0.5} />
+          {/* Flat, even illumination — keeps the model visible with no shading. */}
+          <ambientLight intensity={1.1} />
           <Suspense fallback={<Loader />}>
             <ObjModel data={data} />
           </Suspense>
