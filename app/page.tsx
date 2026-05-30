@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { UserData } from '@/types';
+import { UserData, InventoryPage, AssetInfo } from '@/types';
 import SearchBar from '@/components/SearchBar';
 import SearchHintArrow from '@/components/SearchHintArrow';
 import AvatarMark from '@/components/AvatarMark';
@@ -20,12 +20,29 @@ const fetchWithTimeout = async (
 ): Promise<Response> => {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-
   try {
     return await fetch(input, { ...init, signal: controller.signal });
   } finally {
     clearTimeout(timer);
   }
+};
+
+interface InventoryState {
+  items: AssetInfo[];
+  page: number;
+  hasMore: boolean;
+  total: number;
+  available: boolean;
+  loading: boolean;
+}
+
+const INITIAL_INVENTORY: InventoryState = {
+  items: [],
+  page: -1,
+  hasMore: false,
+  total: 0,
+  available: true,
+  loading: false,
 };
 
 export default function Home() {
@@ -34,19 +51,40 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [resetKey, setResetKey] = useState(0);
+  const [inventory, setInventory] = useState<InventoryState>(INITIAL_INVENTORY);
 
   const handleReset = () => {
     setData(null);
     setError('');
+    setInventory(INITIAL_INVENTORY);
     setResetKey(k => k + 1);
   };
 
+  const loadInventoryPage = useCallback(async (id: string, page: number) => {
+    setInventory(prev => ({ ...prev, loading: true }));
+    try {
+      const res = await fetch(`/api/user/${id}/inventory?page=${page}`);
+      if (!res.ok) throw new Error(`Inventory fetch failed (${res.status})`);
+      const inv: InventoryPage = await res.json();
+      setInventory(prev => ({
+        items: page === 0 ? inv.items : [...prev.items, ...inv.items],
+        page,
+        hasMore: inv.hasMore,
+        total: inv.total,
+        available: inv.available,
+        loading: false,
+      }));
+    } catch {
+      setInventory(prev => ({ ...prev, loading: false, available: false }));
+    }
+  }, []);
+
   const loadUser = useCallback(async (id: string) => {
-    // Throttled — the Search button surfaces the countdown, so just bail.
     if (!getSearchStatus().allowed) return;
 
     setLoading(true);
     setError('');
+    setInventory(INITIAL_INVENTORY);
     try {
       const res = await fetchWithTimeout(`/api/user/${id}`, undefined, 60000);
       if (!res.ok) {
@@ -62,8 +100,10 @@ export default function Home() {
       if (!userData.user) throw new Error('User not found');
       setData(userData);
       setUserId(id);
-      // Start the cooldown / count the request only on a successful find.
       recordSearch();
+
+      // Start loading inventory in parallel after profile is set
+      loadInventoryPage(id, 0);
     } catch (e) {
       if (e instanceof Error && e.name === 'AbortError') {
         setError('Request timed out after 1 minute. Please try again later or check your network connection.');
@@ -74,9 +114,8 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loadInventoryPage]);
 
-  const isLoading = loading;
   const searchButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -88,13 +127,10 @@ export default function Home() {
     return () => window.removeEventListener('search-error', handler);
   }, [loadUser]);
 
-  // Reflect the resolved user in the document title.
   useEffect(() => {
     const displayName = data?.user.displayName;
     document.title = displayName ? `Avatars / ${displayName}` : 'Avatars';
-    return () => {
-      document.title = 'Avatars';
-    };
+    return () => { document.title = 'Avatars'; };
   }, [data]);
 
   return (
@@ -104,8 +140,8 @@ export default function Home() {
           <h1 className="leading-none">
             <span className="sr-only">avatars.verc.im</span>
             <button type="button" onClick={handleReset} className="cursor-pointer">
-                <AvatarMark className="size-9 sm:size-11 text-foreground" />
-              </button>
+              <AvatarMark className="size-9 sm:size-11 text-foreground" />
+            </button>
           </h1>
           <p className="text-sm text-muted-foreground max-w-md">
             Enter a username or user ID to see their avatar and inventory
@@ -115,12 +151,12 @@ export default function Home() {
         <SearchBar
           key={resetKey}
           onSearch={loadUser}
-          loading={isLoading}
+          loading={loading}
           buttonRef={searchButtonRef}
-          onClear={() => { setData(null); setError(''); }}
+          onClear={() => { setData(null); setError(''); setInventory(INITIAL_INVENTORY); }}
         />
 
-        {!data && !isLoading && !error && (
+        {!data && !loading && !error && (
           <SearchHintArrow targetRef={searchButtonRef} />
         )}
 
@@ -130,9 +166,9 @@ export default function Home() {
           </Alert>
         )}
 
-        {isLoading && <LiquidLoader />}
+        {loading && <LiquidLoader />}
 
-        {data && !isLoading && (
+        {data && !loading && (
           <>
             <section className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
               <div className="space-y-4">
@@ -162,22 +198,25 @@ export default function Home() {
               </div>
             </section>
 
-            {(() => {
-              const DEV_TYPES = new Set(['Image', 'Audio', 'Mesh', 'Lua', 'HTML', 'Text', 'Place', 'Model', 'Decal', 'Badge', 'Animation', 'Gamepass', 'Plugin', 'MeshPart', 'AnimationAsset']);
-              const visibleItems = data.inventoryItems.filter(
-                (item) => item.assetType === null || !DEV_TYPES.has(item.assetType)
-              );
-              return (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Inventory ({visibleItems.length})</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <InventoryList items={visibleItems} inventoryAvailable={data.inventoryAvailable} />
-                  </CardContent>
-                </Card>
-              );
-            })()}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                  <span>
+                    Inventory
+                    {inventory.total > 0 ? ` (${inventory.items.length} / ${inventory.total})` : ''}
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <InventoryList
+                  items={inventory.items}
+                  available={inventory.available}
+                  loading={inventory.loading}
+                  hasMore={inventory.hasMore}
+                  onLoadMore={() => loadInventoryPage(userId, inventory.page + 1)}
+                />
+              </CardContent>
+            </Card>
           </>
         )}
       </main>

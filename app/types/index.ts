@@ -26,7 +26,11 @@ export interface UserData {
   avatarThumbnail: string;
   avatarHeadshot: string;
   wornItems: AssetInfo[];
-  inventoryItems: AssetInfo[];
-  inventoryAvailable: boolean;
-  inventoryError?: string | null;
+}
+
+export interface InventoryPage {
+  items: AssetInfo[];
+  hasMore: boolean;
+  total: number;
+  available: boolean;
 }
