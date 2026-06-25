@@ -29,6 +29,13 @@ export const DEV_ASSET_TYPES = new Set([
   'Decal', 'Badge', 'Animation', 'Gamepass', 'Plugin', 'MeshPart', 'AnimationAsset',
 ]);
 
+export const OUTFIT_ASSET_TYPES = new Set([
+  'T-Shirt', 'Hat', 'Shirt', 'Pants', 'Head', 'Face', 'Gear',
+  'Hair', 'Neck', 'Shoulder', 'Front', 'Back', 'Waist', 'Ear', 'Eye',
+  'Jacket', 'Sweater', 'Shorts', 'Left Shoe', 'Right Shoe', 'Skirt', 'Dress',
+  'Eyebrow', 'Eyelash', 'Badge',
+]);
+
 export function assetTypeLabel(typeId: unknown): string | null {
   return typeof typeId === 'number' ? (ASSET_TYPE_LABELS[typeId] ?? null) : null;
 }
@@ -110,7 +117,7 @@ export interface ItemDetails {
 
 export async function getItemDetails(assetId: number): Promise<ItemDetails> {
   try {
-    const data = await fetchJson(`${ITEM_DETAILS_API}${assetId}/details`);
+    const data = await fetchJson(`${ITEM_DETAILS_API}${assetId}/details`, {}, false);
     return {
       name: String(data.Name ?? `Item ${assetId}`),
       price: typeof data.PriceInRobux === 'number' ? data.PriceInRobux : data.IsFree ? 0 : null,

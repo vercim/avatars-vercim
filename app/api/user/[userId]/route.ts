@@ -77,19 +77,21 @@ export async function GET(
     headshotPromise,
   ]);
 
-  const wornItems = wornAssets.map((id) => {
-    const det = detailsMap.get(id) ?? { name: `Item ${id}`, price: null, assetType: null, description: '' };
-    return {
-      assetId: id,
-      name: det.name,
-      price: det.price,
-      assetType: det.assetType,
-      description: det.description,
-      thumbnailUrl: thumbnailMap.get(id) ?? `https://www.roblox.com/asset-thumbnail/image?assetId=${id}&width=150&height=150&format=png`,
-      catalogUrl: `https://www.roblox.com/catalog/${id}`,
-      worn: true,
-    };
-  });
+  const wornItems = wornAssets
+    .map((id) => {
+      const det = detailsMap.get(id) ?? { name: `Item ${id}`, price: null, assetType: null, description: '' };
+      return {
+        assetId: id,
+        name: det.name,
+        price: det.price,
+        assetType: det.assetType,
+        description: det.description,
+        thumbnailUrl: thumbnailMap.get(id) ?? `https://www.roblox.com/asset-thumbnail/image?assetId=${id}&width=150&height=150&format=png`,
+        catalogUrl: `https://www.roblox.com/catalog/${id}`,
+        worn: true,
+      };
+    })
+    .filter((item) => !item.name.startsWith(`Item ${item.assetId}`));
 
   return NextResponse.json({ user: userInfo, avatarThumbnail, avatarHeadshot, wornItems });
 }

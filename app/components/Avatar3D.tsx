@@ -26,13 +26,20 @@ function toStudioMaterial(material: THREE.Material): THREE.MeshStandardMaterial 
   const map = src.map ?? null;
   if (map) map.colorSpace = THREE.SRGBColorSpace;
 
+  const kd = src.color;
+  console.log('[Avatar3D] material:', (material as THREE.Material & {name?: string}).name, {
+    hasMap: !!map,
+    mapUrl: map ? (map as THREE.Texture & {source?: {data?: {src?: string}}}).source?.data?.src ?? '(loading)' : null,
+    kd: kd ? `rgb(${kd.r.toFixed(2)},${kd.g.toFixed(2)},${kd.b.toFixed(2)})` : null,
+  });
+
   const studio = new THREE.MeshStandardMaterial({
     map,
     // When a texture is present, Roblox MTL files often set Kd to black (0,0,0)
     // because the texture is the sole color source. MeshStandardMaterial multiplies
     // map × color, so a black Kd would make any texture render black. Use white
     // when a map is present so the texture shows its true colors.
-    color: map ? new THREE.Color(0xffffff) : (src.color ? src.color.clone() : new THREE.Color(0xffffff)),
+    color: map ? new THREE.Color(0xffffff) : (kd ? kd.clone() : new THREE.Color(0xffffff)),
     roughness: 0.85,
     metalness: 0,
     side: THREE.DoubleSide,
@@ -146,8 +153,8 @@ export default function Avatar3D({ userId, thumbnailUrl }: Avatar3DProps) {
             aabb: json.aabb,
           });
         }
-      } catch {
-        // noop — falls back to the thumbnail.
+      } catch (err) {
+        console.warn('[Avatar3D] Failed to fetch 3D model metadata', { userId }, err);
       } finally {
         if (!cancelled) setFetching(false);
       }
@@ -171,10 +178,17 @@ export default function Avatar3D({ userId, thumbnailUrl }: Avatar3DProps) {
     manager.onLoad = () => {
       if (!cancelled && loaded && !hasError) setObject(loaded);
     };
-    manager.onError = () => {
+    manager.onError = (url) => {
+      console.warn('[Avatar3D] Failed to load 3D asset:', url);
       hasError = true;
       if (!cancelled) setFailed(true);
     };
+
+    // Log every URL the loader resolves — lets us see exact texture paths in the console.
+    manager.setURLModifier((url) => {
+      console.log('[Avatar3D] Loading URL:', url);
+      return url;
+    });
 
     const mtlLoader = new MTLLoader(manager);
     if (data.textureCdnHost) mtlLoader.setResourcePath(data.textureCdnHost);
@@ -212,13 +226,15 @@ export default function Avatar3D({ userId, thumbnailUrl }: Avatar3DProps) {
             loaded = obj;
           },
           undefined,
-          () => {
+          (err) => {
+            console.warn('[Avatar3D] Failed to load OBJ:', data.objUrl, err);
             if (!cancelled) setFailed(true);
           },
         );
       },
       undefined,
-      () => {
+      (err) => {
+        console.warn('[Avatar3D] Failed to load MTL:', data.mtlUrl, err);
         if (!cancelled) setFailed(true);
       },
     );

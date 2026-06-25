@@ -177,7 +177,7 @@ export default function Home() {
               <div className="space-y-4">
                 <UserProfile user={data.user} headshotUrl={data.avatarHeadshot} />
 
-                <Card>
+                <Card className="bg-background/30 backdrop-blur-lg">
                   <CardHeader>
                     <CardTitle className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                       <span>Equipped ({data.wornItems.length})</span>
@@ -198,7 +198,7 @@ export default function Home() {
               </div>
             </section>
 
-            <Card>
+            <Card className="bg-background/30 backdrop-blur-lg">
               <CardHeader>
                 <CardTitle className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                   <span>

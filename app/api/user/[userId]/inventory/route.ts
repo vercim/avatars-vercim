@@ -3,7 +3,7 @@ import {
   INVENTORY_CLOUD_API,
   fetchJson, logApiError,
   getThumbnailUrls, fetchItemDetailsPage,
-  DEV_ASSET_TYPES,
+  OUTFIT_ASSET_TYPES,
 } from '@/lib/roblox';
 
 export const revalidate = 60;
@@ -101,7 +101,7 @@ export async function GET(
         worn: false,
       };
     })
-    .filter((item) => item.assetType === null || !DEV_ASSET_TYPES.has(item.assetType));
+    .filter((item) => item.assetType !== null && OUTFIT_ASSET_TYPES.has(item.assetType) && !item.name.startsWith(`Item ${item.assetId}`));
 
   return NextResponse.json({
     items,
