@@ -78,50 +78,59 @@ function disposeObject(object: THREE.Object3D): void {
 
 // --- Camera rig ----------------------------------------------------------
 // The model is static; the "spin" is the camera orbiting it. On hover we
-// smoothly steer the camera to a fixed dramatic angle and freeze the spin;
-// on leave we ease back and resume orbiting.
+// smoothly steer the camera to a fixed dramatic angle by animating spherical
+// coordinates (azimuth, XZ-radius, elevation) independently — this keeps the
+// camera on an arc around the model and prevents it from clipping through when
+// the model happens to be facing away from the target hover angle.
 
-// Canvas is 160% of the visual frame (inset -30% on each side), so the camera
-// must be 1.6× further back to keep the model the same apparent size in the frame.
 const CANVAS_SCALE = 1.6;
 const NORMAL_RADIUS = 25 * CANVAS_SCALE;          // ≈ 40
 // rad/s — matches the old OrbitControls autoRotateSpeed of 1.25 (2π/60 * speed).
 const ROTATE_SPEED = ((2 * Math.PI) / 60) * 1.25;
-// Bottom-left, pulled in much closer for a strong hero perspective.
-// Also scaled by CANVAS_SCALE so the effective zoom ratio in the frame is preserved.
-const HOVER_CAMERA_POS = new THREE.Vector3(-5 * CANVAS_SCALE, -4 * CANVAS_SCALE, 10 * CANVAS_SCALE);
 const ORBIT_TARGET = new THREE.Vector3(0, 1, 0);
 // Exponential-smoothing rate for the hover blend; higher = snappier.
 const TRANSITION_SPEED = 1.25;
 
-function easeInOut(x: number): number {
-  return x < 0.5 ? 2 * x * x : 1 - (-2 * x + 2) ** 2 / 2;
-}
+// Hover destination in world space, decomposed into orbit coordinates so the
+// camera can travel by arc rather than straight line.
+const HOVER_WORLD = new THREE.Vector3(-5 * CANVAS_SCALE, -4 * CANVAS_SCALE, 10 * CANVAS_SCALE);
+const HOVER_AZIMUTH = Math.atan2(
+  HOVER_WORLD.x - ORBIT_TARGET.x,
+  HOVER_WORLD.z - ORBIT_TARGET.z,
+);
+const HOVER_XZ_RADIUS = Math.sqrt(
+  (HOVER_WORLD.x - ORBIT_TARGET.x) ** 2 +
+  (HOVER_WORLD.z - ORBIT_TARGET.z) ** 2,
+);
+const HOVER_ELEVATION = HOVER_WORLD.y - ORBIT_TARGET.y;
 
 function CameraRig({ hovered }: { hovered: boolean }) {
   const { camera } = useThree();
-  const angle = useRef(0);
-  const blend = useRef(0);
-  const scratch = useRef(new THREE.Vector3()).current;
+  const azimuth = useRef(0);
+  const xzRadius = useRef(NORMAL_RADIUS);
+  const elevation = useRef(0);
 
   useFrame((_, delta) => {
-    // Guard against large jumps after a tab switch or stall.
     const dt = Math.min(delta, 0.05);
+    const rate = Math.min(1, dt * TRANSITION_SPEED);
 
-    const target = hovered ? 1 : 0;
-    blend.current += (target - blend.current) * Math.min(1, dt * TRANSITION_SPEED);
-    const t = easeInOut(blend.current);
+    if (hovered) {
+      // Rotate by the shortest arc to avoid crossing through the model.
+      const diff = ((HOVER_AZIMUTH - azimuth.current) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI;
+      azimuth.current += diff * rate;
+      xzRadius.current += (HOVER_XZ_RADIUS - xzRadius.current) * rate;
+      elevation.current += (HOVER_ELEVATION - elevation.current) * rate;
+    } else {
+      azimuth.current += ROTATE_SPEED * dt;
+      xzRadius.current += (NORMAL_RADIUS - xzRadius.current) * rate;
+      elevation.current += (0 - elevation.current) * rate;
+    }
 
-    // Spin eases to a stop as the hover blend approaches 1.
-    angle.current += ROTATE_SPEED * dt * (1 - t);
-
-    scratch.set(
-      Math.sin(angle.current) * NORMAL_RADIUS,
-      0,
-      Math.cos(angle.current) * NORMAL_RADIUS,
+    camera.position.set(
+      ORBIT_TARGET.x + Math.sin(azimuth.current) * xzRadius.current,
+      ORBIT_TARGET.y + elevation.current,
+      ORBIT_TARGET.z + Math.cos(azimuth.current) * xzRadius.current,
     );
-    scratch.lerp(HOVER_CAMERA_POS, t);
-    camera.position.copy(scratch);
     camera.lookAt(ORBIT_TARGET);
   });
 

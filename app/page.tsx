@@ -183,9 +183,10 @@ export default function Home() {
                       <span>Equipped ({data.wornItems.length})</span>
                       {(() => {
                         const total = data.wornItems.reduce((sum, item) => sum + (item.price ?? 0), 0);
+                        const hasUnknownPrice = data.wornItems.some((item) => item.price == null);
                         return total > 0 ? (
                           <span className="text-sm font-normal text-muted-foreground">
-                            · {total.toLocaleString('en-US')} Robux
+                            · {total.toLocaleString('en-US')}{hasUnknownPrice ? '+' : ''} Robux
                           </span>
                         ) : null;
                       })()}

@@ -8,7 +8,7 @@ import {
 
 export const revalidate = 60;
 
-export const PAGE_SIZE = 24;
+export const PAGE_SIZE = 12;
 
 async function fetchAllInventoryIds(userId: string): Promise<{ ids: number[]; available: boolean }> {
   try {
