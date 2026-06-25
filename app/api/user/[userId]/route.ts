@@ -90,8 +90,7 @@ export async function GET(
         catalogUrl: `https://www.roblox.com/catalog/${id}`,
         worn: true,
       };
-    })
-    .filter((item) => !item.name.startsWith(`Item ${item.assetId}`));
+    });
 
   return NextResponse.json({ user: userInfo, avatarThumbnail, avatarHeadshot, wornItems });
 }
