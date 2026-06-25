@@ -227,6 +227,18 @@ export default function Avatar3D({ userId, thumbnailUrl }: Avatar3DProps) {
             obj.traverse((child) => {
               const mesh = child as THREE.Mesh;
               if (!mesh.isMesh) return;
+
+              // Roblox's OBJ export includes a flat ground/watermark plane.
+              // Hide any mesh that is nearly 2-D: Y extent < 1% of XZ extent.
+              mesh.geometry.computeBoundingBox();
+              const bb = mesh.geometry.boundingBox!;
+              const sizeY = bb.max.y - bb.min.y;
+              const sizeXZ = Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z);
+              if (sizeXZ > 0 && sizeY / sizeXZ < 0.01) {
+                mesh.visible = false;
+                return;
+              }
+
               // Self-shadowing only — there is no ground plane to receive onto.
               mesh.castShadow = true;
               mesh.receiveShadow = true;
