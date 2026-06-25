@@ -205,7 +205,7 @@ export default function SearchBar({ onSearch, loading, buttonRef, onClear, initi
       : 'Search';
 
   return (
-    <form onSubmit={handleSubmit} className="backdrop-blur-lg max-w-md mx-auto">
+    <form onSubmit={handleSubmit} className="relative z-10 backdrop-blur-lg max-w-md mx-auto">
       <div className="flex justify-center gap-2">
         <div ref={containerRef} className="relative flex-1">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none z-10" />
