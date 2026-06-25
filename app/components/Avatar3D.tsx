@@ -16,6 +16,15 @@ interface ModelData {
 // Hard ceiling so the loader can never get stuck if a texture stalls forever.
 const READY_TIMEOUT_MS = 25000;
 
+// Roblox CDN shard selection — identical algorithm to route.ts getHashUrl.
+// Must use the FULL path string (including any 30DAY- prefix) to get the
+// correct shard; using just the hash suffix gives a different bucket.
+function rbxCdnUrl(path: string): string {
+  let st = 31;
+  for (let i = 0; i < path.length; i++) st ^= path.charCodeAt(i);
+  return `https://t${st % 8}.rbxcdn.com/${path}`;
+}
+
 /**
  * Convert a loaded MTL material into a matte PBR material that responds nicely
  * to studio lighting: albedo-only, fully rough, non-metallic — so it catches
@@ -184,8 +193,18 @@ export default function Avatar3D({ userId, thumbnailUrl }: Avatar3DProps) {
       if (!cancelled) setFailed(true);
     };
 
-    // Log every URL the loader resolves — lets us see exact texture paths in the console.
+    // Roblox CDN texture paths use 30DAY-{hash} format in the MTL file, but
+    // setResourcePath computes the shard from the bare hash (without the prefix).
+    // XOR("30DAY-abc…") ≠ XOR("abc…"), so the shard can be wrong → 404.
+    // URLModifier intercepts every resolved URL and recomputes the correct shard
+    // from the actual full path string.
     manager.setURLModifier((url) => {
+      const match = url.match(/^https?:\/\/t\d\.rbxcdn\.com\/(.+)$/);
+      if (match) {
+        const corrected = rbxCdnUrl(match[1]);
+        if (corrected !== url) console.log('[Avatar3D] Shard corrected:', url, '->', corrected);
+        return corrected;
+      }
       console.log('[Avatar3D] Loading URL:', url);
       return url;
     });
